@@ -140,7 +140,7 @@
                       :background-repeat "no-repeat"
                       :background-position "center"
                       :background-size "220px 165px"
-                      :width (str (:width size) "px")
+                      :width (str (+ 10 (:width size)) "px")
                       :height (str (:height size) "px")}
 
                      (= :right (:dir pos))

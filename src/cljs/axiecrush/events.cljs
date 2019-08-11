@@ -33,6 +33,14 @@
                           (cond->> result
                             transform? (transform-keys ->kebab-case-keyword)))))})))
 
+(rf/reg-cofx
+  :window-size
+  (fn [cofx]
+    (assoc cofx
+           :window-size
+           {:width (.-innerWidth js/window)
+            :height (.-innerHeight js/window)})))
+
 (defmulti set-active-panel
   (fn [cofx [_ panel :as event]]
     panel))
@@ -76,9 +84,14 @@
    :dodges []
    :potions []})
 
-(defn new-game-with-axie
-  [axie]
-  (-> new-game
+(defn ->with-board-size
+  [db board]
+  (update db :board merge (select-keys board [:width :height])))
+
+(defn ->with-axie
+  [db axie]
+  (-> db
+      (assoc-in [:player :x] (/ (:width (:board db)) 2))
       (update :player merge (select-keys (:stats axie) [:speed :morale :skill]))
       (update :player merge {:max-hp (:hp (:stats axie))
                              :current-hp (:hp (:stats axie))})
@@ -121,8 +134,14 @@
 
 (rf/reg-event-fx
   :game/reset
-  (fn [{:keys [db]} _]
-    {:db (merge db (new-game-with-axie (:axie db)))
+  [(rf/inject-cofx :window-size)]
+  (fn [{:keys [db window-size]} _]
+    {:db (-> db
+             (merge new-game)
+             (->with-board-size (-> window-size
+                                    (update :width - 30)
+                                    (update :height - 40)))
+             (->with-axie (:axie db)))
      :dispatch [:game/start (:axie db)]}))
 
 (rf/reg-event-fx
