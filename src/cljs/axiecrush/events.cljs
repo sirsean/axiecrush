@@ -500,10 +500,19 @@
    :kind :potion
    :speed (+ 25 (rand 40))
    :hp 20
+   :msg 20
+   :color "purple"
    :x (+ 60 (rand (- (:width board) 100)))
    :y (- (:height board) 30)
    :width 30
    :height 40})
+
+(defn collide-fn
+  [db item]
+  (case (:kind item)
+    :potion (-> db
+                (update-in [:player :current-hp] + (:hp item))
+                (update-in [:player :current-hp] min (get-in db [:player :max-hp])))))
 
 (rf/reg-event-db
   :item/generate
@@ -537,10 +546,9 @@
                               :x (:x item)
                               :y (:y item)
                               :time 800
-                              :msg (int (:hp item))
-                              :color "purple"})
-        (update-in [:player :current-hp] + (:hp item))
-        (update-in [:player :current-hp] min (get-in db [:player :max-hp])))))
+                              :msg (:msg item)
+                              :color (:color item)})
+        (collide-fn item))))
 
 (rf/reg-event-db
   :item/bottom
