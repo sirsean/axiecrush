@@ -79,11 +79,11 @@
    :running? false
    :token-gen-time 100
    :rock-gen-time 2000
-   :potion-gen-time 20000
+   :item-gen-time {:potion 20000}
    :tokens []
    :rocks []
    :dodges []
-   :potions []})
+   :items []})
 
 (defn ->with-board-size
   [db board]
@@ -180,7 +180,7 @@
         (:running? db) (merge {:dispatch-n [[:token/events dt]
                                             [:rock/events dt]
                                             [:dodge/events dt]
-                                            [:potion/events dt]
+                                            [:item/events dt]
                                             [:level/events dt]
                                             [:player/death dt]]})))))
 
@@ -484,21 +484,21 @@
                                    (<= 0 (:time d)))
                                  dodges)))))
 
-;; health potions
+;; items
 
 (rf/reg-event-fx
-  :potion/events
+  :item/events
   (fn [_ [_ dt]]
-    {:dispatch-n [[:potion/generate dt]
-                  [:potion/movement dt]
-                  [:potion/collision dt]
-                  [:potion/bottom dt]]}))
+    {:dispatch-n [[:item/generate dt]
+                  [:item/movement dt]
+                  [:item/collision dt]
+                  [:item/bottom dt]]}))
 
 (defn new-potion
   [{:keys [board]}]
   {:id (gensym)
+   :kind :potion
    :speed (+ 25 (rand 40))
-   ;:hp (+ 5 (rand 10))
    :hp 20
    :x (+ 60 (rand (- (:width board) 100)))
    :y (- (:height board) 30)
@@ -506,42 +506,43 @@
    :height 40})
 
 (rf/reg-event-db
-  :potion/generate
+  :item/generate
   (fn [db [_ dt]]
-    (if (>= dt (rand (:potion-gen-time db)))
-      (-> db
-          (update :potions conj (new-potion db)))
-      db)))
-
-;; token gen-time boosters
+    (update db :items into
+            (->> (:item-gen-time db)
+                 (keep (fn [[kind gen-time]]
+                         (when (>= dt (rand gen-time))
+                           kind)))
+                 (map (fn [kind]
+                        (new-potion db)))))))
 
 (rf/reg-event-db
-  :potion/movement
+  :item/movement
   (fn [db [_ dt]]
-    (update db :potions process-items-movement dt)))
+    (update db :items process-items-movement dt)))
 
 (rf/reg-event-fx
-  :potion/collision
+  :item/collision
   (fn [{:keys [db]} [_ dt]]
     (let [{collisions true
-           remaining false} (group-by (partial collision? (:player db)) (:potions db))]
-      {:db (assoc db :potions remaining)
-       :dispatch-n (map (fn [p] [:potion/collide p]) collisions)})))
+           remaining false} (group-by (partial collision? (:player db)) (:items db))]
+      {:db (assoc db :items remaining)
+       :dispatch-n (map (fn [p] [:item/collide p]) collisions)})))
 
 (rf/reg-event-db
-  :potion/collide
-  (fn [db [_ potion]]
+  :item/collide
+  (fn [db [_ item]]
     (-> db
         (update :dodges conj {:id (gensym)
-                              :x (:x potion)
-                              :y (:y potion)
+                              :x (:x item)
+                              :y (:y item)
                               :time 800
-                              :msg (int (:hp potion))
+                              :msg (int (:hp item))
                               :color "purple"})
-        (update-in [:player :current-hp] + (:hp potion))
+        (update-in [:player :current-hp] + (:hp item))
         (update-in [:player :current-hp] min (get-in db [:player :max-hp])))))
 
 (rf/reg-event-db
-  :potion/bottom
+  :item/bottom
   (fn [db [_ dt]]
-    (update db :potions process-bottom)))
+    (update db :items process-bottom)))

@@ -82,6 +82,6 @@
     (:dodges db)))
 
 (rf/reg-sub
-  :potions
+  :items
   (fn [db]
-    (:potions db)))
+    (:items db)))

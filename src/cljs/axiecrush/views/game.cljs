@@ -19,7 +19,7 @@
         tokens @(rf/subscribe [:tokens])
         rocks @(rf/subscribe [:rocks])
         dodges @(rf/subscribe [:dodges])
-        potions @(rf/subscribe [:potions])]
+        items @(rf/subscribe [:items])]
     [:div {:style {:background-image "url(/img/savannah-bg.png)"
                    :background-repeat "no-repeat"
                    :background-position "center"
@@ -122,18 +122,20 @@
                         :width (str width "px")
                         :height (str height "px")}}]))
 
-     ; show the potions
-     (for [{:keys [id x y width height]} potions]
-       [:div {:key id
-              :style {:position "absolute"
-                      :bottom (str (- y (/ height 2)) "px")
-                      :left (str (- x (/ width 2)) "px")
-                      :background-image "url(https://cdn.axieinfinity.com/terrarium-items/f17a.png)"
-                      :background-repeat "no-repeat"
-                      :background-position "center"
-                      :background-size (str width "px " height "px")
-                      :width (str width "px")
-                      :height (str height "px")}}])
+     ;; show the items
+     (let [item-image #(case %
+                         :potion "https://cdn.axieinfinity.com/terrarium-items/f17a.png")]
+       (for [{:keys [id kind x y width height]} items]
+         [:div {:key id
+                :style {:position "absolute"
+                        :bottom (str (- y (/ height 2)) "px")
+                        :left (str (- x (/ width 2)) "px")
+                        :background-image (format "url(%s)" (item-image kind))
+                        :background-repeat "no-repeat"
+                        :background-position "center"
+                        :background-size (str width "px " height "px")
+                        :width (str width "px")
+                        :height (str height "px")}}]))
 
      ; the axie/player
      [:div {:style (cond->
