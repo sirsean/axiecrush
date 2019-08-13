@@ -106,17 +106,21 @@
                       :height (str height "px")}}])
 
      ; show the rocks
-     (for [{:keys [id x y width height]} rocks]
-       [:div {:key id
-              :style {:position "absolute"
-                      :bottom (str (- y (/ height 2)) "px")
-                      :left (str (- x (/ width 2)) "px")
-                      :background-image "url(https://cdn.axieinfinity.com/terrarium-items/s11b.png)"
-                      :background-repeat "no-repeat"
-                      :background-position "center"
-                      :background-size (str width "px " height "px")
-                      :width (str width "px")
-                      :height (str height "px")}}])
+     (let [rock-image #(case %
+                         :barrage "https://cdn.axieinfinity.com/terrarium-items/s11c.png"
+                         "https://cdn.axieinfinity.com/terrarium-items/s11b.png")]
+
+       (for [{:keys [id x y width height kind]} rocks]
+         [:div {:key id
+                :style {:position "absolute"
+                        :bottom (str (- y (/ height 2)) "px")
+                        :left (str (- x (/ width 2)) "px")
+                        :background-image (format "url(%s)" (rock-image kind))
+                        :background-repeat "no-repeat"
+                        :background-position "center"
+                        :background-size (str width "px " height "px")
+                        :width (str width "px")
+                        :height (str height "px")}}]))
 
      ; show the potions
      (for [{:keys [id x y width height]} potions]

@@ -66,6 +66,7 @@
             :width 120
             :height 100
             :dir :left
+            :level 1
             :score 0
             :max-hp 10
             :current-hp 10
@@ -176,20 +177,11 @@
           dt (- now (:now db))]
       (cond-> {:db (-> db
                        (assoc :now now))}
-        (:running? db) (merge {:dispatch-n [[:token/generate dt]
-                                            [:token/movement dt]
-                                            [:token/collision dt]
-                                            [:token/bottom dt]
-                                            [:rock/generate dt]
-                                            [:rock/movement dt]
-                                            [:rock/collision dt]
-                                            [:rock/bottom dt]
-                                            [:dodge/decrement dt]
-                                            [:dodge/clear dt]
-                                            [:potion/generate dt]
-                                            [:potion/movement dt]
-                                            [:potion/collision dt]
-                                            [:potion/bottom dt]
+        (:running? db) (merge {:dispatch-n [[:token/events dt]
+                                            [:rock/events dt]
+                                            [:dodge/events dt]
+                                            [:potion/events dt]
+                                            [:level/events dt]
                                             [:player/death dt]]})))))
 
 (rf/reg-event-db
@@ -288,7 +280,40 @@
         r2 (radius b)]
     (< d (+ r1 r2))))
 
+;; levels
+
+(rf/reg-event-fx
+  :level/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:level/check-level dt]]}))
+
+(rf/reg-event-fx
+  :level/check-level
+  (fn [{:keys [db]} _]
+    (let [level (:level (:player db))
+          current-level (inc (quot (:score (:player db)) 1000))]
+      (cond-> {:db (assoc-in db [:player :level] current-level)}
+        (not= level current-level)
+        (merge {:dispatch [:level/up]})))))
+
+(rf/reg-event-fx
+  :level/up
+  (fn [{:keys [db]} _]
+    {:db (-> db
+             (update :token-gen-time / 2))
+     :dispatch [:rock/create
+                (* 5 (:level (:player db)))
+                :barrage]}))
+
 ;; tokens
+
+(rf/reg-event-fx
+  :token/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:token/generate dt]
+                  [:token/movement dt]
+                  [:token/collision dt]
+                  [:token/bottom dt]]}))
 
 (defn new-token
   [{:keys [board]}]
@@ -306,7 +331,7 @@
     (if (>= dt (rand (:token-gen-time db)))
       {:db (-> db
                (update :token-gen-time + 50)
-               (update :token-gen-time min 3000)
+               (update :token-gen-time min 2000)
                (update :tokens conj (new-token db)))}
       {})))
 
@@ -351,26 +376,39 @@
 
 ;; rocks
 
+(rf/reg-event-fx
+  :rock/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:rock/generate dt]
+                  [:rock/movement dt]
+                  [:rock/collision dt]
+                  [:rock/bottom dt]]}))
+
 (defn new-rock
-  [{:keys [board]}]
+  [{:keys [board player]} {:keys [kind]}]
   {:id (gensym)
-   :speed (+ 70 (rand 140))
-   ;:dmg (+ 12 (rand 18))
-   :dmg 10
+   :kind kind
+   :speed (+ 50 (* 10 (:level player)) (rand 140))
+   :dmg (* 4 (:level player))
    :x (+ 60 (rand (- (:width board) 100)))
    :y (- (:height board) 30)
    :width 30
    :height 30})
 
 (rf/reg-event-db
+  :rock/create
+  (fn [db [_ n kind]]
+    (update db :rocks into (repeatedly n (partial new-rock db {:kind kind})))))
+
+(rf/reg-event-fx
   :rock/generate
-  (fn [db [_ dt]]
+  (fn [{:keys [db]} [_ dt]]
     (if (>= dt (rand (:rock-gen-time db)))
-      (-> db
-          (update :rock-gen-time - 50)
-          (update :rock-gen-time max 500)
-          (update :rocks conj (new-rock db)))
-      db)))
+      {:db (-> db
+               (update :rock-gen-time - 50)
+               (update :rock-gen-time max 500))
+       :dispatch [:rock/create 1 :default]}
+      {})))
 
 (defn process-rock-movement
   [rock dt]
@@ -432,6 +470,12 @@
 
 ;; dodges
 
+(rf/reg-event-fx
+  :dodge/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:dodge/decrement dt]
+                  [:dodge/clear dt]]}))
+
 (rf/reg-event-db
   :dodge/decrement
   (fn [db [_ dt]]
@@ -449,6 +493,14 @@
                                  dodges)))))
 
 ;; health potions
+
+(rf/reg-event-fx
+  :potion/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:potion/generate dt]
+                  [:potion/movement dt]
+                  [:potion/collision dt]
+                  [:potion/bottom dt]]}))
 
 (defn new-potion
   [{:keys [board]}]
