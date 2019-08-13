@@ -256,6 +256,14 @@
        :dispatch-n [[:game/stop]]}
       {})))
 
+(defn process-item-movement
+  [{:keys [speed] :as item} dt]
+  (update item :y - (/ (* speed dt) 1000)))
+
+(defn process-items-movement
+  [items dt]
+  (map #(process-item-movement % dt) items))
+
 (defn process-bottom
   [items]
   (remove
@@ -335,19 +343,11 @@
                (update :tokens conj (new-token db)))}
       {})))
 
-(defn process-token-movement
-  [token dt]
-  (update token :y - (/ (* (:speed token) dt) 1000)))
-
-(defn process-tokens-movement
-  [tokens dt]
-  (map #(process-token-movement % dt) tokens))
-
 (rf/reg-event-db
   :token/movement
   (fn [db [_ dt]]
     (-> db
-        (update :tokens process-tokens-movement dt))))
+        (update :tokens process-items-movement dt))))
 
 (rf/reg-event-fx
   :token/collision
@@ -410,18 +410,10 @@
        :dispatch [:rock/create 1 :default]}
       {})))
 
-(defn process-rock-movement
-  [rock dt]
-  (update rock :y - (/ (* (:speed rock) dt) 1000)))
-
-(defn process-rocks-movement
-  [rocks dt]
-  (map #(process-rock-movement % dt) rocks))
-
 (rf/reg-event-db
   :rock/movement
   (fn [db [_ dt]]
-    (update db :rocks process-rocks-movement dt)))
+    (update db :rocks process-items-movement dt)))
 
 ;; higher morale gives a better chance at dodging
 (defn dodge?
@@ -526,7 +518,7 @@
 (rf/reg-event-db
   :potion/movement
   (fn [db [_ dt]]
-    (update db :potions process-rocks-movement dt)))
+    (update db :potions process-items-movement dt)))
 
 (rf/reg-event-fx
   :potion/collision
