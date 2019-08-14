@@ -124,7 +124,8 @@
 
      ;; show the items
      (let [item-image #(case %
-                         :potion "https://cdn.axieinfinity.com/terrarium-items/f17a.png")]
+                         :potion "https://cdn.axieinfinity.com/terrarium-items/f17a.png"
+                         :token-boost "https://cdn.axieinfinity.com/terrarium-items/a3a.png")]
        (for [{:keys [id kind x y width height]} items]
          [:div {:key id
                 :style {:position "absolute"

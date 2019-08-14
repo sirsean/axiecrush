@@ -85,6 +85,15 @@
    :dodges []
    :items []})
 
+(defn level->item-gen-time
+  [level]
+  (case level
+    2 {:token-boost 10000}
+    3 {:token-boost 9000}
+    4 {:token-boost 8000}
+    5 {:token-boost 7000}
+    {}))
+
 (defn ->with-board-size
   [db board]
   (update db :board merge (select-keys board [:width :height])))
@@ -308,7 +317,8 @@
   :level/up
   (fn [{:keys [db]} _]
     {:db (-> db
-             (update :token-gen-time / 2))
+             (update :token-gen-time / 2)
+             (update :item-gen-time merge (level->item-gen-time (:level (:player db)))))
      :dispatch [:rock/create
                 (* 5 (:level (:player db)))
                 :barrage]}))
@@ -507,12 +517,28 @@
    :width 30
    :height 40})
 
+(defn new-token-boost
+  [{:keys [board]}]
+  {:id (gensym)
+   :kind :token-boost
+   :speed (+ 25 (rand 40))
+   :boost 500
+   :msg "token boost!"
+   :color "purple"
+   :x (+ 60 (rand (- (:width board) 100)))
+   :y (- (:height board) 30)
+   :width 30
+   :height 40})
+
 (defn collide-fn
   [db item]
   (case (:kind item)
     :potion (-> db
                 (update-in [:player :current-hp] + (:hp item))
-                (update-in [:player :current-hp] min (get-in db [:player :max-hp])))))
+                (update-in [:player :current-hp] min (get-in db [:player :max-hp])))
+    :token-boost (-> db
+                     (update :token-gen-time - (:boost item))
+                     (update :token-gen-time max 100))))
 
 (rf/reg-event-db
   :item/generate
@@ -523,7 +549,9 @@
                          (when (>= dt (rand gen-time))
                            kind)))
                  (map (fn [kind]
-                        (new-potion db)))))))
+                        (case kind
+                          :potion (new-potion db)
+                          :token-boost (new-token-boost db))))))))
 
 (rf/reg-event-db
   :item/movement
