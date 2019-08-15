@@ -79,8 +79,10 @@
    :running? false
    :token-gen-time 100
    :rock-gen-time 2000
-   :item-gen-time {:potion 20000}
+   :item-gen-time {:potion 20000
+                   :freeze-player 7000}
    :rocks-frozen 0
+   :player-frozen 0
    :tokens []
    :rocks []
    :dodges []
@@ -90,12 +92,16 @@
   [level]
   (case level
     2 {:token-boost 10000
-       :freeze-rocks 15000}
+       :freeze-rocks 15000
+       :freeze-player 6000}
     3 {:token-boost 9000
-       :clear-rocks 30000}
+       :clear-rocks 30000
+       :freeze-player 5000}
     4 {:token-boost 8000
-       :freeze-rocks 10000}
-    5 {:token-boost 7000}
+       :freeze-rocks 10000
+       :freeze-player 4000}
+    5 {:token-boost 7000
+       :freeze-player 3000}
     {}))
 
 (defn ->with-board-size
@@ -113,6 +119,14 @@
                               3 {:width 60 :height 50}
                               {:width 120 :height 100}))
       (update :player assoc :image (:image axie))))
+
+(defn rocks-frozen?
+  [db]
+  (pos? (:rocks-frozen db)))
+
+(defn player-frozen?
+  [db]
+  (pos? (:player-frozen db)))
 
 (rf/reg-event-db
  ::initialize-db
@@ -201,7 +215,8 @@
   :move/left
   (fn [db _]
     (cond-> db
-      (:running? db)
+      (and (not (player-frozen? db))
+           (:running? db))
       (->
         (assoc-in [:player :dir] :left)
         (update-in [:player :x] - (:speed (:player db)))
@@ -211,7 +226,8 @@
   :move/right
   (fn [db _]
     (cond-> db
-      (:running? db)
+      (and (not (player-frozen? db))
+           (:running? db))
       (->
         (assoc-in [:player :dir] :right)
         (update-in [:player :x] + (:speed (:player db)))
@@ -222,7 +238,8 @@
   :move/down
   (fn [db _]
     (cond-> db
-      (:running? db)
+      (and (not (player-frozen? db))
+           (:running? db))
       (->
         (update-in [:player :y] - (:speed (:player db)))
         (update-in [:player :y] max (/ (:height (:player db)) 2))))))
@@ -231,7 +248,8 @@
   :move/up
   (fn [db _]
     (cond-> db
-      (:running? db)
+      (and (not (player-frozen? db))
+           (:running? db))
       (->
         (update-in [:player :y] + (:speed (:player db)))
         (update-in [:player :y] min (- (:height (:board db))
@@ -417,7 +435,7 @@
 (rf/reg-event-fx
   :rock/generate
   (fn [{:keys [db]} [_ dt]]
-    (if (and (not (pos? (:rocks-frozen db)))
+    (if (and (not (rocks-frozen? db))
              (>= dt (rand (:rock-gen-time db))))
       {:db (-> db
                (update :rock-gen-time - 50)
@@ -429,7 +447,7 @@
   :rock/movement
   (fn [db [_ dt]]
     (cond-> db
-      (not (pos? (:rocks-frozen db)))
+      (not (rocks-frozen? db))
       (update :rocks process-items-movement dt))))
 
 ;; higher morale gives a better chance at dodging
@@ -550,6 +568,19 @@
    :width 30
    :height 40})
 
+(defn new-freeze-player
+  [{:keys [board]}]
+  {:id (gensym)
+   :kind :freeze-player
+   :speed (+ 65 (rand 80))
+   :freeze-ms 1000
+   :msg "freeze!"
+   :color "red"
+   :x (+ 60 (rand (- (:width board) 100)))
+   :y (- (:height board) 30)
+   :width 30
+   :height 40})
+
 (defn new-token-boost
   [{:keys [board]}]
   {:id (gensym)
@@ -573,6 +604,8 @@
                      (assoc :rocks []))
     :freeze-rocks (-> db
                       (update :rocks-frozen + (:freeze-ms item)))
+    :freeze-player (-> db
+                       (update :player-frozen + (:freeze-ms item)))
     :token-boost (-> db
                      (update :token-gen-time - (:boost item))
                      (update :token-gen-time max 100))))
@@ -590,6 +623,7 @@
                           :potion (new-potion db)
                           :clear-rocks (new-clear-rocks db)
                           :freeze-rocks (new-freeze-rocks db)
+                          :freeze-player (new-freeze-player db)
                           :token-boost (new-token-boost db))))))))
 
 (rf/reg-event-db
@@ -622,7 +656,9 @@
   (fn [db [_ dt]]
     (-> db
         (update :rocks-frozen - dt)
-        (update :rocks-frozen max 0))))
+        (update :rocks-frozen max 0)
+        (update :player-frozen - dt)
+        (update :player-frozen max 0))))
 
 (rf/reg-event-db
   :item/bottom
