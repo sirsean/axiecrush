@@ -126,6 +126,7 @@
      (let [item-image #(case %
                          :potion "https://cdn.axieinfinity.com/terrarium-items/f17a.png"
                          :clear-rocks "https://cdn.axieinfinity.com/terrarium-items/p3c.png"
+                         :freeze-rocks "https://cdn.axieinfinity.com/terrarium-items/p3b.png"
                          :token-boost "https://cdn.axieinfinity.com/terrarium-items/a3a.png")]
        (for [{:keys [id kind x y width height]} items]
          [:div {:key id

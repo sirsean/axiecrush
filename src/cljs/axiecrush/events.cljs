@@ -80,6 +80,7 @@
    :token-gen-time 100
    :rock-gen-time 2000
    :item-gen-time {:potion 20000}
+   :rocks-frozen 0
    :tokens []
    :rocks []
    :dodges []
@@ -88,10 +89,12 @@
 (defn level->item-gen-time
   [level]
   (case level
-    2 {:token-boost 10000}
+    2 {:token-boost 10000
+       :freeze-rocks 15000}
     3 {:token-boost 9000
-       :clear-rocks 20000}
-    4 {:token-boost 8000}
+       :clear-rocks 30000}
+    4 {:token-boost 8000
+       :freeze-rocks 10000}
     5 {:token-boost 7000}
     {}))
 
@@ -414,7 +417,8 @@
 (rf/reg-event-fx
   :rock/generate
   (fn [{:keys [db]} [_ dt]]
-    (if (>= dt (rand (:rock-gen-time db)))
+    (if (and (not (pos? (:rocks-frozen db)))
+             (>= dt (rand (:rock-gen-time db))))
       {:db (-> db
                (update :rock-gen-time - 50)
                (update :rock-gen-time max 500))
@@ -424,7 +428,9 @@
 (rf/reg-event-db
   :rock/movement
   (fn [db [_ dt]]
-    (update db :rocks process-items-movement dt)))
+    (cond-> db
+      (not (pos? (:rocks-frozen db)))
+      (update :rocks process-items-movement dt))))
 
 ;; higher morale gives a better chance at dodging
 (defn dodge?
@@ -503,6 +509,7 @@
     {:dispatch-n [[:item/generate dt]
                   [:item/movement dt]
                   [:item/collision dt]
+                  [:item/effects dt]
                   [:item/bottom dt]]}))
 
 (defn new-potion
@@ -523,8 +530,20 @@
   {:id (gensym)
    :kind :clear-rocks
    :speed (+ 95 (rand 60))
-   :boost 500
    :msg "clear rocks!"
+   :color "purple"
+   :x (+ 60 (rand (- (:width board) 100)))
+   :y (- (:height board) 30)
+   :width 30
+   :height 40})
+
+(defn new-freeze-rocks
+  [{:keys [board]}]
+  {:id (gensym)
+   :kind :freeze-rocks
+   :speed (+ 65 (rand 80))
+   :freeze-ms 1500
+   :msg "freeze rocks!"
    :color "purple"
    :x (+ 60 (rand (- (:width board) 100)))
    :y (- (:height board) 30)
@@ -552,6 +571,8 @@
                 (update-in [:player :current-hp] min (get-in db [:player :max-hp])))
     :clear-rocks (-> db
                      (assoc :rocks []))
+    :freeze-rocks (-> db
+                      (update :rocks-frozen + (:freeze-ms item)))
     :token-boost (-> db
                      (update :token-gen-time - (:boost item))
                      (update :token-gen-time max 100))))
@@ -568,6 +589,7 @@
                         (case kind
                           :potion (new-potion db)
                           :clear-rocks (new-clear-rocks db)
+                          :freeze-rocks (new-freeze-rocks db)
                           :token-boost (new-token-boost db))))))))
 
 (rf/reg-event-db
@@ -594,6 +616,13 @@
                               :msg (:msg item)
                               :color (:color item)})
         (collide-fn item))))
+
+(rf/reg-event-db
+  :item/effects
+  (fn [db [_ dt]]
+    (-> db
+        (update :rocks-frozen - dt)
+        (update :rocks-frozen max 0))))
 
 (rf/reg-event-db
   :item/bottom
