@@ -89,7 +89,8 @@
   [level]
   (case level
     2 {:token-boost 10000}
-    3 {:token-boost 9000}
+    3 {:token-boost 9000
+       :clear-rocks 20000}
     4 {:token-boost 8000}
     5 {:token-boost 7000}
     {}))
@@ -517,6 +518,19 @@
    :width 30
    :height 40})
 
+(defn new-clear-rocks
+  [{:keys [board]}]
+  {:id (gensym)
+   :kind :clear-rocks
+   :speed (+ 95 (rand 60))
+   :boost 500
+   :msg "clear rocks!"
+   :color "purple"
+   :x (+ 60 (rand (- (:width board) 100)))
+   :y (- (:height board) 30)
+   :width 30
+   :height 40})
+
 (defn new-token-boost
   [{:keys [board]}]
   {:id (gensym)
@@ -536,6 +550,8 @@
     :potion (-> db
                 (update-in [:player :current-hp] + (:hp item))
                 (update-in [:player :current-hp] min (get-in db [:player :max-hp])))
+    :clear-rocks (-> db
+                     (assoc :rocks []))
     :token-boost (-> db
                      (update :token-gen-time - (:boost item))
                      (update :token-gen-time max 100))))
@@ -551,6 +567,7 @@
                  (map (fn [kind]
                         (case kind
                           :potion (new-potion db)
+                          :clear-rocks (new-clear-rocks db)
                           :token-boost (new-token-boost db))))))))
 
 (rf/reg-event-db
