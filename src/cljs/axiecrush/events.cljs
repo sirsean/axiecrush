@@ -141,6 +141,13 @@
        (map :by)
        (reduce +)))
 
+(defn buff->weak-rocks
+  [{:keys [buffs]}]
+  (->> buffs
+       (filter #(= :weak-rocks (:kind %)))
+       (map :multiple)
+       (reduce * 1)))
+
 (rf/reg-event-db
  ::initialize-db
  (fn [_ _]
@@ -351,6 +358,12 @@
       (update :buffs conj {:id (gensym)
                            :kind :slow-rocks
                            :by 30
+                           :for 3000})
+
+      (has-part? axie "mouth-pincer")
+      (update :buffs conj {:id (gensym)
+                           :kind :weak-rocks
+                           :multiple 0.5
                            :for 3000}))))
 
 (defn process-item-movement
@@ -542,7 +555,8 @@
                                    :x (:x rock)
                                    :y (:y rock)
                                    :time 800
-                                   :msg (int (:dmg rock))
+                                   :msg (int (* (:dmg rock)
+                                                (buff->weak-rocks db)))
                                    :color "red"})
              (update-in [:player :current-hp] - (:dmg rock))
              (update-in [:player :current-hp] max 0))
