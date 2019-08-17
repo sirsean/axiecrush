@@ -155,6 +155,13 @@
        (map :by)
        (reduce + 0)))
 
+(defn buff->boost-token-rate
+  [{:keys [buffs]}]
+  (->> buffs
+       (filter #(= :boost-token-rate (:kind %)))
+       (map :by)
+       (reduce + 0)))
+
 (rf/reg-event-db
  ::initialize-db
  (fn [_ _]
@@ -385,6 +392,16 @@
                             :by 3
                             :for 3000})))))
 
+(rf/reg-event-db
+  :buff/dodge
+  (fn [{:keys [axie] :as db} [_ rock]]
+    (cond-> db
+      (has-part? axie "horn-arco")
+      (update :buffs conj {:id (gensym)
+                           :kind :boost-token-rate
+                           :by 500
+                           :for 3000}))))
+
 (defn process-item-movement
   [{:keys [speed] :as item} dt {:keys [slow-down]}]
   (let [speed (max (- speed slow-down) 0)]
@@ -467,7 +484,8 @@
   :token/generate
   (fn [{:keys [db]} [_ dt]]
     ;(if (zero? (count (:tokens db)))
-    (if (>= dt (rand (:token-gen-time db)))
+    (if (>= dt (rand (- (:token-gen-time db)
+                        (buff->boost-token-rate db))))
       {:db (-> db
                (update :token-gen-time + 50)
                (update :token-gen-time min 2000)
@@ -581,15 +599,16 @@
              (update-in [:player :current-hp] max 0))
      :dispatch [:buff/hit rock]}))
 
-(rf/reg-event-db
+(rf/reg-event-fx
   :rock/dodged
-  (fn [db [_ rock]]
-    (update db :dodges conj {:id (gensym)
-                             :x (:x rock)
-                             :y (:y rock)
-                             :time 700
-                             :msg "dodged!"
-                             :color "red"})))
+  (fn [{:keys [db]} [_ rock]]
+    {:db (update db :dodges conj {:id (gensym)
+                                  :x (:x rock)
+                                  :y (:y rock)
+                                  :time 700
+                                  :msg "dodged!"
+                                  :color "red"})
+     :dispatch [:buff/dodge rock]}))
 
 (rf/reg-event-db
   :rock/bottom
