@@ -400,7 +400,13 @@
       (update :buffs conj {:id (gensym)
                            :kind :boost-token-rate
                            :by 500
-                           :for 3000}))))
+                           :for 3000})
+
+      (has-part? axie "mouth-axie-kiss")
+      (update :buffs conj {:id (gensym)
+                           :kind :boost-morale
+                           :by 3
+                           :for 6000}))))
 
 (defn process-item-movement
   [{:keys [speed] :as item} dt {:keys [slow-down]}]
