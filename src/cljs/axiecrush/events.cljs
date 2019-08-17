@@ -139,7 +139,7 @@
   (->> buffs
        (filter #(= :slow-rocks (:kind %)))
        (map :by)
-       (reduce +)))
+       (reduce + 0)))
 
 (defn buff->weak-rocks
   [{:keys [buffs]}]
@@ -147,6 +147,13 @@
        (filter #(= :weak-rocks (:kind %)))
        (map :multiple)
        (reduce * 1)))
+
+(defn buff->boost-morale
+  [{:keys [buffs]}]
+  (->> buffs
+       (filter #(= :boost-morale (:kind %)))
+       (map :by)
+       (reduce + 0)))
 
 (rf/reg-event-db
  ::initialize-db
@@ -364,7 +371,19 @@
       (update :buffs conj {:id (gensym)
                            :kind :weak-rocks
                            :multiple 0.5
-                           :for 3000}))))
+                           :for 3000})
+
+      (has-part? axie "mouth-confident")
+      (update :buffs conj {:id (gensym)
+                           :kind :boost-morale
+                           :by 6
+                           :for 6000})
+
+      (has-part? axie "tail-shiba")
+      (update :buffs (conj {:id (gensym)
+                            :kind :boost-morale
+                            :by 3
+                            :for 3000})))))
 
 (defn process-item-movement
   [{:keys [speed] :as item} dt {:keys [slow-down]}]
@@ -532,8 +551,8 @@
 
 ;; higher morale gives a better chance at dodging
 (defn dodge?
-  [{:keys [morale]}]
-  (>= morale (rand 100)))
+  [{:keys [player] :as db}]
+  (>= (+ (:morale player) (buff->boost-morale db)) (rand 100)))
 
 (rf/reg-event-fx
   :rock/collision
@@ -541,7 +560,7 @@
     (let [{collisions true
            remaining false} (group-by (partial collision? (:player db)) (:rocks db))
           {hits false
-           dodged true} (group-by #(dodge? (:player db)) collisions)]
+           dodged true} (group-by #(dodge? db) collisions)]
       {:db (assoc db :rocks remaining)
        :dispatch-n (concat
                      (map (fn [r] [:rock/collide r]) hits)
