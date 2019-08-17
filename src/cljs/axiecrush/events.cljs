@@ -83,6 +83,7 @@
                    :freeze-player 7000}
    :rocks-frozen 0
    :player-frozen 0
+   :buffs []
    :tokens []
    :rocks []
    :dodges []
@@ -127,6 +128,18 @@
 (defn player-frozen?
   [db]
   (pos? (:player-frozen db)))
+
+(defn has-part?
+  [axie part-id]
+  (let [parts (->> axie :parts (map :id) set)]
+    (contains? parts part-id)))
+
+(defn buff->slow-rocks
+  [{:keys [buffs]}]
+  (->> buffs
+       (filter #(= :slow-rocks (:kind %)))
+       (map :by)
+       (reduce +)))
 
 (rf/reg-event-db
  ::initialize-db
@@ -209,6 +222,7 @@
                                             [:dodge/events dt]
                                             [:item/events dt]
                                             [:level/events dt]
+                                            [:buff/events dt]
                                             [:player/death dt]]})))))
 
 (rf/reg-event-db
@@ -287,13 +301,66 @@
        :dispatch-n [[:game/stop]]}
       {})))
 
+(rf/reg-event-fx
+  :buff/events
+  (fn [_ [_ dt]]
+    {:dispatch-n [[:buff/countdown dt]]}))
+
+(defn countdown-buff
+  [buff dt]
+  (update buff :for - dt))
+
+(defn countdown-buffs
+  [buffs dt]
+  (map #(countdown-buff % dt) buffs))
+
+(defn remove-empty-buffs
+  [buffs]
+  (filter #(pos? (:for %)) buffs))
+
+(rf/reg-event-db
+  :buff/countdown
+  (fn [db [_ dt]]
+    (-> db
+        (update :buffs countdown-buffs dt)
+        (update :buffs remove-empty-buffs))))
+
+(rf/reg-event-db
+  :buff/hit
+  (fn [{:keys [axie] :as db} [_ rock]]
+    (cond-> db
+      (has-part? axie "horn-unko")
+      (update :buffs conj {:id (gensym)
+                           :kind :slow-rocks
+                           :by 30
+                           :for 3000})
+
+      (has-part? axie "horn-pinku-unko")
+      (update :buffs conj {:id (gensym)
+                           :kind :slow-rocks
+                           :by 30
+                           :for 3000})
+
+      (has-part? axie "mouth-kotaro")
+      (update :buffs conj {:id (gensym)
+                           :kind :slow-rocks
+                           :by 30
+                           :for 3000})
+
+      (has-part? axie "horn-incisor")
+      (update :buffs conj {:id (gensym)
+                           :kind :slow-rocks
+                           :by 30
+                           :for 3000}))))
+
 (defn process-item-movement
-  [{:keys [speed] :as item} dt]
-  (update item :y - (/ (* speed dt) 1000)))
+  [{:keys [speed] :as item} dt {:keys [slow-down]}]
+  (let [speed (max (- speed slow-down) 0)]
+    (update item :y - (/ (* speed dt) 1000))))
 
 (defn process-items-movement
-  [items dt]
-  (map #(process-item-movement % dt) items))
+  [items dt buffs]
+  (map #(process-item-movement % dt buffs) items))
 
 (defn process-bottom
   [items]
@@ -448,7 +515,7 @@
   (fn [db [_ dt]]
     (cond-> db
       (not (rocks-frozen? db))
-      (update :rocks process-items-movement dt))))
+      (update :rocks process-items-movement dt {:slow-down (buff->slow-rocks db)}))))
 
 ;; higher morale gives a better chance at dodging
 (defn dodge?
@@ -467,18 +534,19 @@
                      (map (fn [r] [:rock/collide r]) hits)
                      (map (fn [r] [:rock/dodged r]) dodged))})))
 
-(rf/reg-event-db
+(rf/reg-event-fx
   :rock/collide
-  (fn [db [_ rock]]
-    (-> db
-        (update :dodges conj {:id (gensym)
-                              :x (:x rock)
-                              :y (:y rock)
-                              :time 800
-                              :msg (int (:dmg rock))
-                              :color "red"})
-        (update-in [:player :current-hp] - (:dmg rock))
-        (update-in [:player :current-hp] max 0))))
+  (fn [{:keys [db]} [_ rock]]
+    {:db (-> db
+             (update :dodges conj {:id (gensym)
+                                   :x (:x rock)
+                                   :y (:y rock)
+                                   :time 800
+                                   :msg (int (:dmg rock))
+                                   :color "red"})
+             (update-in [:player :current-hp] - (:dmg rock))
+             (update-in [:player :current-hp] max 0))
+     :dispatch [:buff/hit rock]}))
 
 (rf/reg-event-db
   :rock/dodged
