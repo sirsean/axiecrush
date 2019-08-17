@@ -16,6 +16,7 @@
         player-image @(rf/subscribe [:player/image])
         score @(rf/subscribe [:player/score])
         hp @(rf/subscribe [:player/hp])
+        buffs @(rf/subscribe [:buffs])
         tokens @(rf/subscribe [:tokens])
         rocks @(rf/subscribe [:rocks])
         dodges @(rf/subscribe [:dodges])
@@ -140,6 +141,18 @@
                         :background-size (str width "px " height "px")
                         :width (str width "px")
                         :height (str height "px")}}]))
+
+     ; buffs
+     [:div {:style {:position "absolute"
+                    :bottom "10px"
+                    :left "10px"}}
+      (map-indexed (fn [i {:keys [kind count]}]
+                     [:div {:key i}
+                      (str
+                        (name kind)
+                        (when (< 1 count)
+                          (format " (%sx)" count)))])
+                   buffs)]
 
      ; the axie/player
      [:div {:style (cond->

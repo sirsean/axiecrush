@@ -18,6 +18,22 @@
     (:board db)))
 
 (rf/reg-sub
+  :buffs/raw
+  (fn [db]
+    (:buffs db)))
+
+(rf/reg-sub
+  :buffs
+  (fn [_]
+    [(rf/subscribe [:buffs/raw])])
+  (fn [[buffs]]
+    (->> buffs
+         (group-by :kind)
+         (map (fn [[kind coll]]
+                {:kind kind
+                 :count (count coll)})))))
+
+(rf/reg-sub
   :player
   (fn [db]
     (:player db)))
