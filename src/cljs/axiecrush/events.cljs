@@ -162,6 +162,13 @@
        (map :by)
        (reduce + 0)))
 
+(defn buff->boost-speed
+  [{:keys [buffs]}]
+  (->> buffs
+       (filter #(= :boost-speed (:kind %)))
+       (map :by)
+       (reduce + 0)))
+
 (rf/reg-event-db
  ::initialize-db
  (fn [_ _]
@@ -246,6 +253,10 @@
                                             [:buff/events dt]
                                             [:player/death dt]]})))))
 
+(defn player-speed
+  [db]
+  (+ (:speed (:player db)) (buff->boost-speed db)))
+
 (rf/reg-event-db
   :move/left
   (fn [db _]
@@ -254,7 +265,7 @@
            (:running? db))
       (->
         (assoc-in [:player :dir] :left)
-        (update-in [:player :x] - (:speed (:player db)))
+        (update-in [:player :x] - (player-speed db))
         (update-in [:player :x] max (/ (:width (:player db)) 2))))))
 
 (rf/reg-event-db
@@ -265,7 +276,7 @@
            (:running? db))
       (->
         (assoc-in [:player :dir] :right)
-        (update-in [:player :x] + (:speed (:player db)))
+        (update-in [:player :x] + (player-speed db))
         (update-in [:player :x] min (- (:width (:board db))
                                        (/ (:width (:player db)) 2)))))))
 
@@ -276,7 +287,7 @@
       (and (not (player-frozen? db))
            (:running? db))
       (->
-        (update-in [:player :y] - (:speed (:player db)))
+        (update-in [:player :y] - (player-speed db))
         (update-in [:player :y] max (/ (:height (:player db)) 2))))))
 
 (rf/reg-event-db
@@ -286,7 +297,7 @@
       (and (not (player-frozen? db))
            (:running? db))
       (->
-        (update-in [:player :y] + (:speed (:player db)))
+        (update-in [:player :y] + (player-speed db))
         (update-in [:player :y] min (- (:height (:board db))
                                        (/ (:height (:player db)) 2)))))))
 
@@ -387,10 +398,16 @@
                            :for 6000})
 
       (has-part? axie "tail-shiba")
-      (update :buffs (conj {:id (gensym)
-                            :kind :boost-morale
-                            :by 3
-                            :for 3000})))))
+      (update :buffs conj {:id (gensym)
+                           :kind :boost-morale
+                           :by 3
+                           :for 3000})
+
+      (has-part? axie "back-goldfish")
+      (update :buffs conj {:id (gensym)
+                           :kind :boost-speed
+                           :by 3
+                           :for 3000}))))
 
 (rf/reg-event-db
   :buff/dodge
